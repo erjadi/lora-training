@@ -70,7 +70,7 @@ TASK_PARAMETERS = {
 class Predictor(BasePredictor):
     def predict(
         self,
-        base_model: str = Input(description="The base model to use for training", default="runwayml/stable-diffusion-v1-5"),
+        base_model: str = Input(description="The base model to use for training", default="stabilityai/stable-diffusion-xl-base-1.0"),
         instance_data: Path = Input(
             description="A ZIP file containing your training images (JPG, PNG, etc. size not restricted). These images contain your 'subject' that you want the trained model to embed in the output domain for later generating customized scenes beyond the training images. For best results, use images without noise or unrelated objects in the background.",
         ),
