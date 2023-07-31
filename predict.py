@@ -1,5 +1,6 @@
 import gc
 import torch
+import os
 from cog import BasePredictor, Input, Path
 from lora_diffusion.cli_lora_pti import train as lora_train
 
@@ -69,6 +70,7 @@ TASK_PARAMETERS = {
 class Predictor(BasePredictor):
     def predict(
         self,
+        base_model: str = Input(description="The base model to use for training", default="runwayml/stable-diffusion-v1-5"),
         instance_data: Path = Input(
             description="A ZIP file containing your training images (JPG, PNG, etc. size not restricted). These images contain your 'subject' that you want the trained model to embed in the output domain for later generating customized scenes beyond the training images. For best results, use images without noise or unrelated objects in the background.",
         ),
@@ -83,20 +85,23 @@ class Predictor(BasePredictor):
             " resolution.",
             default=512,
         ),
+        steps: int = Input(description="Number of training steps (default is 5000)", default=5000),
+        learning_rate: str = Input(description="Learning rate (defaut is 1e-4)", default="1e-4"),
+        prompt: str = Input(description="A seed for reproducible training", default="loraprompt"),
     ) -> Path:
         if seed is None:
             seed = random_seed()
         print(f"Using seed: {seed}")
 
         cog_instance_data = "cog_instance_data"
-        cog_output_dir = "checkpoints"
+        cog_output_dir = "cog_output"
         clean_directories([cog_instance_data, cog_output_dir])
 
         params = {k: v for k, v in TASK_PARAMETERS[task].items()}
         params.update(COMMON_PARAMETERS)
         params.update(
             {
-                "pretrained_model_name_or_path": "./stable-diffusion-v1-5-cache",
+                "pretrained_model_name_or_path": base_model,
                 "instance_data_dir": cog_instance_data,
                 "output_dir": cog_output_dir,
                 "resolution": resolution,
@@ -106,13 +111,7 @@ class Predictor(BasePredictor):
 
         extract_zip_and_flatten(instance_data, cog_instance_data)
 
-        lora_train(**params)
-        gc.collect()
-        torch.cuda.empty_cache()
+        os.system("cd ./lora_tbq_v2/training_scripts && bash ./run_lora_db_unet_only.sh " + prompt + " " + str(steps) + " " + str(resolution) + " " + learning_rate + " " + base_model)
+        os.system("ls -al ./cog_output")
 
-        num_steps = COMMON_PARAMETERS["max_train_steps_tuning"]
-        weights_path = Path(cog_output_dir) / f"step_{num_steps}.safetensors"
-        output_path = Path(cog_output_dir) / get_output_filename(instance_data)
-        weights_path.rename(output_path)
-
-        return output_path
+        return Path("./cog_output/lora_weight_webui.safetensors")
